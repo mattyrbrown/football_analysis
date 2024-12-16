@@ -1,7 +1,12 @@
+# Adjustable constants
+PLAYER_IDS = list(range(5))
+TEAM_IDS = list(range(6))
+
 # File paths
 DATA_RAW_PATH = "data/raw/"
 DATA_PROCESSED_PATH = "data/processed/"
 DATA_OUTPUTS_PATH = "data/outputs/"
+
 
 # File names
 EVENTS_DATA_NAME = "EventLevelData.csv"
@@ -10,6 +15,12 @@ TRANSFOMED_EVENTS_DATA_NAME = "TransformedEventLevelData.csv"
 RECEPTIONS_HEATMAP_NAME = "ReceptionsHeatmap.png"
 RECEPTIONS_METRICS_NAME = "ReceptionsMetrics.csv"
 PLAYER = "Player"
+GOAL_METRICS_NAME = "GoalMetrics.csv"
+TEAM = "Team"
+TEAM_METRICS_NAME = "TeamMetrics.csv"
+RECEPTIONS_SLIDE_TABLE_NAME = "ReceptionsSlideTable.csv"
+SCATTER_PLOT_NAME = "ScatterPlot.png"
+
 
 # Function constants
 LEFT = "left"
@@ -28,6 +39,10 @@ GREY = "#AFABAB"
 BLUES = "Blues"
 CENTER = "center"
 TIGHT = "tight"
+RIGHT = 'right'
+BOTTOM = 'bottom'
+COLOR = 'color'
+TOP = 'top'
 
 
 # Events data constants
@@ -113,7 +128,39 @@ MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "median_expec
 MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = "mean_event_score_per_reception_in_zone_14_and_17"
 MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = "median_event_score_per_reception_in_zone_14_and_17"
 POSSESSION_EVENT_SCORE = "possession_event_score"
+TOTAL_POSSESSIONS = "total_possessions"
+TOTAL_SHOTS = "total_shots"
+TOTAL_GOALS = "total_goals"
+TOTAL_EXPECTED_GOALS = "total_expected_goals"
+TOTAL_SHOOTING_OPPORTUNITIES = "total_shooting_opportunities"
+SHOOTING_OPPORTUNITIES_PER_90 = "shooting_opportunities_per_90"
+SHOOTING_OPPORTUNITIES_PER_POSSESSION = "shooting_opportunities_per_possession"
+SHOTS_PER_90 = "shots_per_90"
+SHOTS_PER_POSSESSION = "shots_per_possession"
+GOALS_PER_90 = "goals_per_90"
+GOALS_PER_SHOT = "goals_per_shot"
+GOALS_PER_POSSESSION = "goals_per_possession"
+EXPECTED_GOALS_PER_90 = "expected_goals_per_90"
+MEAN_EXPECTED_GOALS_PER_SHOT = "mean_expected_goals_per_shot"
+MEDIAN_EXPECTED_GOALS_PER_SHOT = "median_expected_goals_per_shot"
+RATIO_OF_GOALS_TO_EXPECTED_GOALS = "ratio_of_goals_to_expected_goals"
+PENALTY = "penalty"
+PLAYER_TEAM_COMBO = 'player_team_combo'
+
 
 # Matches data constants
 HOME_TEAM_ID = "HomeTeamID"
 AWAY_TEAM_ID = "AwayTeamID"
+TEAM_ELO = "team_elo"
+OPPOSITION_ELO = "opposition_elo"
+TEAM_EXPECTED_GOALS = "team_expected_goals"
+OPPONENT_EXPECTED_GOALS = "opponent_expected_goals"
+HOME_TEAM_XG = "HomeTeamXG"
+AWAY_TEAM_XG = "AwayTeamXG"
+DIFFERENCE_TO_OPPONENT_ELO = "difference_to_opponent_elo"
+DIFFERENCE_TO_OPPONENT_EXPECTED_GOALS = "difference_to_opponent_expected_goals"
+MEAN_ELO_RATING = "mean_elo_rating"
+MEAN_EXPECTED_GOALS = "mean_expected_goals"
+HOME_ELO = "HomeElo"
+AWAY_ELO = "AwayElo"
+MEAN_OPPONENT_ELO_RATING = "mean_opponent_elo_rating"
