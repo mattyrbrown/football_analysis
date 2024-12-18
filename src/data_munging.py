@@ -122,7 +122,7 @@ def read_and_join_events_and_matches_data():
     # Join matches data to events data
     df = events_df.merge(
         matches_df,
-        how="left",
+        how=LEFT,
         on=MATCH_ID
     )
 

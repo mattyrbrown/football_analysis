@@ -30,6 +30,7 @@ STATISTIC = "statistic"
 MEAN = "mean"
 MEDIAN = "median"
 
+
 # Plot constants
 PITCH_TYPE = "statsbomb"
 PITCH_COLOUR = "#03182F"
@@ -43,6 +44,15 @@ RIGHT = 'right'
 BOTTOM = 'bottom'
 COLOR = 'color'
 TOP = 'top'
+X_DIFF = 'x_diff'
+Y_DIFF = 'y_diff'
+HA = 'ha'
+VA = 'va'
+X_OFFSET = 'x_offset'
+Y_OFFSET = 'y_offset'
+BOTH = "both"
+DASH_LINE = "--"
+GOALS_EQUAL_XG = "Goals = xG"
 
 
 # Events data constants
@@ -147,6 +157,16 @@ RATIO_OF_GOALS_TO_EXPECTED_GOALS = "ratio_of_goals_to_expected_goals"
 PENALTY = "penalty"
 PLAYER_TEAM_COMBO = 'player_team_combo'
 
+
+# Events data chart labels
+CHART_LABELS = {
+    SHOOTING_OPPORTUNITIES_PER_POSSESSION: "Shots and shot assists per possession",
+    SHOTS_PER_POSSESSION: "Shots per possession",
+    SHOTS_PER_90: "Shots per 90",
+    MEAN_EXPECTED_GOALS_PER_SHOT: "Mean xG per shot",
+    EXPECTED_GOALS_PER_90: "xG per 90",
+    GOALS_PER_90: "Goals per 90",    
+}
 
 # Matches data constants
 HOME_TEAM_ID = "HomeTeamID"

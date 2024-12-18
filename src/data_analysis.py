@@ -686,7 +686,22 @@ def create_receptions_slide_table(player_receptions_metrics):
     )
 
 
-def create_scatter_plot_of_two_metrics(df: pd.DataFrame, x_metric: str, y_metric: str):
+def closest_difference(df, column):
+    values = df[column].values  # Extract values as a numpy array
+
+    closest_diff = []
+    for i, val in enumerate(values):
+        # Calculate absolute differences and exclude current row (set diff to inf for itself)
+        diffs = values - val
+        diffs[i] = np.inf  # Exclude the current row
+        closest_diff.append(np.min(diffs))  # Minimum of the remaining differences
+
+    return closest_diff
+
+
+def create_scatter_plot_of_two_metrics(
+    df: pd.DataFrame, x_metric: str, y_metric: str, y_x_line: bool = False
+):
 
     df[PLAYER_TEAM_COMBO] = df[PLAYER_NAME] + " (" + df[TEAM_NAME] + ")"
 
@@ -699,13 +714,117 @@ def create_scatter_plot_of_two_metrics(df: pd.DataFrame, x_metric: str, y_metric
     df[COLOR] = df[PLAYER_TEAM_COMBO].map(color_mapping)
 
     # Create a figure
-    fig, ax = plt.subplots(figsize=(15, 5.5))
+    fig, ax = plt.subplots(figsize=(15, 5.8))
 
     # Determine axis limits for boundary checks
     x_min, x_max = df[x_metric].min(), df[x_metric].max()
     y_min, y_max = df[y_metric].min(), df[y_metric].max()
-    x_margin = (x_max - x_min) * 0.02  # Small margin for x
-    y_margin = (y_max - y_min) * 0.02  # Small margin for y
+    x_word_length = (x_max - x_min) * 0.25
+    y_word_height = (y_max - y_min) * 0.05
+    x_lim_max = x_max - x_word_length
+    x_lim_min = x_min + x_word_length
+    y_lim_max = y_max - y_word_height
+    y_lim_min = y_min + y_word_height
+    default_x_offset = (x_max - x_min) * 0.02
+    default_y_offset = (y_max - y_min) * 0.02
+
+    df[X_DIFF] = closest_difference(df, x_metric)
+    df[Y_DIFF] = closest_difference(df, y_metric)
+
+    df.loc[df[x_metric] > x_lim_max, HA] = RIGHT
+    df.loc[df[x_metric] < x_lim_min, HA] = LEFT
+    df.loc[df[y_metric] > y_lim_max, VA] = TOP
+    df.loc[df[y_metric] < y_lim_min, VA] = BOTTOM
+
+    df[X_OFFSET] = None
+    df[Y_OFFSET] = None
+
+    overlapping_points = df[
+        (np.abs(df[X_DIFF]) <= 2 * x_word_length)
+        & (np.abs(df[Y_DIFF]) <= 2 * y_word_height)
+    ]
+    non_overlapping_points = df[~df.index.isin(overlapping_points.index)]
+
+    if not overlapping_points.empty:
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] > 0) & (overlapping_points[VA] == TOP),
+            Y_OFFSET,
+        ] = (
+            0 - default_y_offset
+        )
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] > 0) & (overlapping_points[VA] == BOTTOM),
+            Y_OFFSET,
+        ] = 0 - (0.5 * default_y_offset)
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] < 0) & (overlapping_points[VA] == BOTTOM),
+            Y_OFFSET,
+        ] = default_y_offset
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] < 0) & (overlapping_points[VA] == TOP),
+            Y_OFFSET,
+        ] = 0 - (0.5 * default_y_offset)
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] > 0) & (overlapping_points[HA] == LEFT),
+            X_OFFSET,
+        ] = (
+            0.5 * default_x_offset
+        )
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] > 0) & (overlapping_points[HA] == RIGHT),
+            X_OFFSET,
+        ] = (
+            0 - default_x_offset
+        )
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] < 0) & (overlapping_points[HA] == LEFT),
+            X_OFFSET,
+        ] = default_x_offset
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] < 0) & (overlapping_points[HA] == RIGHT),
+            X_OFFSET,
+        ] = 0 - (0.5 * default_x_offset)
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] > 0) & (overlapping_points[VA].isnull()), VA
+        ] = TOP
+        overlapping_points.loc[
+            (overlapping_points[Y_DIFF] < 0) & (overlapping_points[VA].isnull()), VA
+        ] = BOTTOM
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] > 0) & (overlapping_points[HA].isnull()), HA
+        ] = RIGHT
+        overlapping_points.loc[
+            (overlapping_points[X_DIFF] < 0) & (overlapping_points[HA].isnull()), HA
+        ] = LEFT
+
+    df = pd.concat([non_overlapping_points, overlapping_points], ignore_index=True)
+
+    df.loc[df[HA].isnull(), HA] = RIGHT
+    df.loc[df[VA].isnull(), VA] = TOP
+    df.loc[(df[X_OFFSET].isnull()) & (df[HA] == LEFT), X_OFFSET] = default_x_offset
+    df.loc[(df[X_OFFSET].isnull()) & (df[HA] == RIGHT), X_OFFSET] = 0 - default_x_offset
+    df.loc[(df[Y_OFFSET].isnull()) & (df[VA] == TOP), Y_OFFSET] = 0 - default_y_offset
+    df.loc[(df[Y_OFFSET].isnull()) & (df[VA] == BOTTOM), Y_OFFSET] = default_y_offset
+
+    df.loc[(df[HA] == RIGHT) & (df[X_OFFSET] > 0), X_OFFSET] = df.loc[
+        (df[HA] == RIGHT) & (df[X_OFFSET] > 0)
+    ]
+    df.loc[(df[HA] == LEFT) & (df[X_OFFSET] < 0), X_OFFSET] = 0
+    df.loc[(df[VA] == TOP) & (df[Y_OFFSET] > 0), Y_OFFSET] = 0
+    df.loc[(df[VA] == BOTTOM) & (df[Y_OFFSET] < 0), Y_OFFSET] = 0
+
+    if y_x_line == True:
+        ax.axline(
+            (0, 0),
+            slope=1,
+            color=GREY,
+            linestyle=DASH_LINE,
+            linewidth=2,
+            zorder=1,
+        )
+        ax.text(
+            0.99 * x_max, 1.01 * x_max, GOALS_EQUAL_XG, fontsize=16, ha=RIGHT, va=BOTTOM
+        )
 
     # Plot the scatter plot with colors
     for _, row in df.iterrows():
@@ -719,22 +838,23 @@ def create_scatter_plot_of_two_metrics(df: pd.DataFrame, x_metric: str, y_metric
             zorder=2,
         )
 
-        # Calculate dynamic offsets to avoid overlapping and keep in bounds
-        x_offset = x_margin if row[x_metric] < (x_max - x_margin) else -x_margin
-        y_offset = y_margin if row[y_metric] < (y_max - y_margin) else -y_margin
-
         # Add text with offset
         ax.text(
-            row[x_metric] + x_offset,
-            row[y_metric] + y_offset,
+            row[x_metric] + row[X_OFFSET],
+            row[y_metric] + row[Y_OFFSET],
             row[PLAYER_TEAM_COMBO],
             fontsize=16,
-            ha=LEFT if x_offset > 0 else RIGHT,  # Adjust alignment dynamically
-            va=BOTTOM if y_offset > 0 else TOP,
+            ha=row[HA],
+            va=row[VA],
             zorder=3,
         )
-    
-    ax.tick_params(axis='both', labelsize=16)
+
+    ax.margins(x=0.02, y=0.02)
+    ax.tick_params(axis=BOTH, labelsize=16)
+    ax.grid(True, linestyle=DASH_LINE, alpha=0.5)
+
+    ax.set_xlabel(CHART_LABELS[x_metric], fontsize=16, labelpad=8)
+    ax.set_ylabel(CHART_LABELS[y_metric], fontsize=16, labelpad=8)
 
     # Save the scatter plot
     fig.tight_layout()
@@ -755,7 +875,7 @@ def create_scatter_plot_for_goal_scoring_metrics(player_team_goals_metrics):
         player_team_goals_metrics, SHOTS_PER_90, MEAN_EXPECTED_GOALS_PER_SHOT
     )
     create_scatter_plot_of_two_metrics(
-        player_team_goals_metrics, EXPECTED_GOALS_PER_90, GOALS_PER_90
+        player_team_goals_metrics, EXPECTED_GOALS_PER_90, GOALS_PER_90, y_x_line=True
     )
 
 
