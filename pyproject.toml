@@ -18,6 +18,8 @@ ipykernel = "^6.29.5"
 mplsoccer = "^1.4.0"
 seaborn = "^0.13.2"
 adjusttext = "^1.3.0"
+plotnine = "^0.14.4"
+scikit-learn = "^1.6.0"
 
 
 [build-system]

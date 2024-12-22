@@ -1,6 +1,9 @@
 # Adjustable constants
 PLAYER_IDS = list(range(5))
 TEAM_IDS = list(range(6))
+SIGMOID_K_RANGE = 4
+OPPOSITION_ELO_CAP = 0.1
+ELO_DIFFERENCE_CAP = 0.1
 
 # File paths
 DATA_RAW_PATH = "data/raw/"
@@ -12,14 +15,20 @@ DATA_OUTPUTS_PATH = "data/outputs/"
 EVENTS_DATA_NAME = "EventLevelData.csv"
 MATCHES_DATA_NAME = "MatchLevelData.csv"
 TRANSFOMED_EVENTS_DATA_NAME = "TransformedEventLevelData.csv"
+MERGED_EVENTS_MATCH_LEVEL_DATA_NAME = "MergedEventsMatchLevelData.csv"
 RECEPTIONS_HEATMAP_NAME = "ReceptionsHeatmap.png"
 RECEPTIONS_METRICS_NAME = "ReceptionsMetrics.csv"
+RECEPTIONS_NORMALISED_METRICS_NAME = "ReceptionsNormalisedMetrics.csv"
+GOALS_NORMALISED_METRICS_NAME = "GoalsNormalisedMetrics.csv"
 PLAYER = "Player"
 GOAL_METRICS_NAME = "GoalMetrics.csv"
 TEAM = "Team"
 TEAM_METRICS_NAME = "TeamMetrics.csv"
 RECEPTIONS_SLIDE_TABLE_NAME = "ReceptionsSlideTable.csv"
 SCATTER_PLOT_NAME = "ScatterPlot.png"
+MATCH_LEVEL_DATA_CORRECTED_MAPPING_NAME = "MatchLevelDataCorrectedMapping.csv"
+BOX_PLOT_NAME = "BoxPlot.png"
+RADAR_PLOT_NAME = "RadarPlot.png"
 
 
 # Function constants
@@ -29,6 +38,7 @@ COUNT = "count"
 STATISTIC = "statistic"
 MEAN = "mean"
 MEDIAN = "median"
+FIRST = "first"
 
 
 # Plot constants
@@ -40,19 +50,20 @@ GREY = "#AFABAB"
 BLUES = "Blues"
 CENTER = "center"
 TIGHT = "tight"
-RIGHT = 'right'
-BOTTOM = 'bottom'
-COLOR = 'color'
-TOP = 'top'
-X_DIFF = 'x_diff'
-Y_DIFF = 'y_diff'
-HA = 'ha'
-VA = 'va'
-X_OFFSET = 'x_offset'
-Y_OFFSET = 'y_offset'
+RIGHT = "right"
+BOTTOM = "bottom"
+COLOR = "color"
+TOP = "top"
+X_DIFF = "x_diff"
+Y_DIFF = "y_diff"
+HA = "ha"
+VA = "va"
+X_OFFSET = "x_offset"
+Y_OFFSET = "y_offset"
 BOTH = "both"
 DASH_LINE = "--"
 GOALS_EQUAL_XG = "Goals = xG"
+DENSITY = "Density"
 
 
 # Events data constants
@@ -119,7 +130,9 @@ TOTAL_RECEPTIONS = "total_receptions"
 TOTAL_RECEPTIONS_IN_ZONE_14_AND_17 = "total_receptions_in_zone_14_and_17"
 SHOOTING_OPPORTUNITY = "shooting_opportunity"
 TOTAL_SHOTS_IN_ZONE_14_AND_17 = "total_shots_in_zone_14_and_17"
-TOTAL_SHOOTING_OPPORTUNITIES_IN_ZONE_14_AND_17 = "total_shooting_opportunities_in_zone_14_and_17"
+TOTAL_SHOOTING_OPPORTUNITIES_IN_ZONE_14_AND_17 = (
+    "total_shooting_opportunities_in_zone_14_and_17"
+)
 PERCENTAGE_RECEPTIONS_IN_ZONE_14_AND_17 = "percentage_receptions_in_zone_14_and_17"
 RECEPTIONS_PER_90 = "receptions_per_90"
 RECEPTIONS_IN_ZONE_14_AND_17_PER_90 = "receptions_in_zone_14_and_17_per_90"
@@ -127,16 +140,32 @@ FINAL_THIRD = "final_third"
 TOTAL_RECEPTIONS_IN_FINAL_THIRD = "total_receptions_in_final_third"
 RECEPTIONS_IN_FINAL_THIRD_PER_90 = "receptions_in_final_third_per_90"
 PERCENTAGE_RECEPTIONS_IN_FINAL_THIRD = "percentage_receptions_in_final_third"
-SHOOTING_OPPORTUNITIES_PER_RECEPTION_IN_ZONE_14_AND_17 = "shooting_opportunities_per_reception_in_zone_14_and_17"
-SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "shooting_opportunities_per_90_from_receptions_in_zone_14_and_17"
+SHOOTING_OPPORTUNITIES_PER_RECEPTION_IN_ZONE_14_AND_17 = (
+    "shooting_opportunities_per_reception_in_zone_14_and_17"
+)
+SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = (
+    "shooting_opportunities_per_90_from_receptions_in_zone_14_and_17"
+)
 SHOTS_PER_RECEPTION_IN_ZONE_14_AND_17 = "shots_per_reception_in_zone_14_and_17"
-SHOTS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "shots_per_90_from_receptions_in_zone_14_and_17"
+SHOTS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = (
+    "shots_per_90_from_receptions_in_zone_14_and_17"
+)
 TOTAL_EXPECTED_GOALS_IN_ZONE_14_AND_17 = "total_expected_goals_in_zone_14_and_17"
-EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "expected_goals_per_90_from_receptions_in_zone_14_and_17"
-MEAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "mean_expected_goals_per_shot_from_receptions_in_zone_14_and_17"
-MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = "median_expected_goals_per_shot_from_receptions_in_zone_14_and_17"
-MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = "mean_event_score_per_reception_in_zone_14_and_17"
-MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = "median_event_score_per_reception_in_zone_14_and_17"
+EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = (
+    "expected_goals_per_90_from_receptions_in_zone_14_and_17"
+)
+MEAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = (
+    "mean_expected_goals_per_shot_from_receptions_in_zone_14_and_17"
+)
+MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17 = (
+    "median_expected_goals_per_shot_from_receptions_in_zone_14_and_17"
+)
+MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = (
+    "mean_event_score_per_reception_in_zone_14_and_17"
+)
+MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17 = (
+    "median_event_score_per_reception_in_zone_14_and_17"
+)
 POSSESSION_EVENT_SCORE = "possession_event_score"
 TOTAL_POSSESSIONS = "total_possessions"
 TOTAL_SHOTS = "total_shots"
@@ -155,18 +184,8 @@ MEAN_EXPECTED_GOALS_PER_SHOT = "mean_expected_goals_per_shot"
 MEDIAN_EXPECTED_GOALS_PER_SHOT = "median_expected_goals_per_shot"
 RATIO_OF_GOALS_TO_EXPECTED_GOALS = "ratio_of_goals_to_expected_goals"
 PENALTY = "penalty"
-PLAYER_TEAM_COMBO = 'player_team_combo'
+PLAYER_TEAM_COMBO = "player_team_combo"
 
-
-# Events data chart labels
-CHART_LABELS = {
-    SHOOTING_OPPORTUNITIES_PER_POSSESSION: "Shots and shot assists per possession",
-    SHOTS_PER_POSSESSION: "Shots per possession",
-    SHOTS_PER_90: "Shots per 90",
-    MEAN_EXPECTED_GOALS_PER_SHOT: "Mean xG per shot",
-    EXPECTED_GOALS_PER_90: "xG per 90",
-    GOALS_PER_90: "Goals per 90",    
-}
 
 # Matches data constants
 HOME_TEAM_ID = "HomeTeamID"
@@ -184,3 +203,31 @@ MEAN_EXPECTED_GOALS = "mean_expected_goals"
 HOME_ELO = "HomeElo"
 AWAY_ELO = "AwayElo"
 MEAN_OPPONENT_ELO_RATING = "mean_opponent_elo_rating"
+ELO_DIFFERENCE = "elo_difference"
+OPPOSITION_ELO_WEIGHTING = "opposition_elo_weighting"
+ELO_DIFFERENCE_WEIGHTING = "elo_difference_weighting"
+HOME_GOALS = "HomeGoals"
+AWAY_GOALS = "AwayGoals"
+MATCH_DATE_TIME = "MatchDateTime"
+NORMALISED = "normalised"
+SCALED = "scaled"
+
+
+# Chart labels
+CHART_LABELS = {
+    SHOOTING_OPPORTUNITIES_PER_POSSESSION: "Proportion of possessions ending in a shot or shot assist - Scaled",
+    SHOTS_PER_POSSESSION: "Shots per possession",
+    SHOTS_PER_90: "Shots per 90",
+    MEAN_EXPECTED_GOALS_PER_SHOT: "Mean xG per shot",
+    EXPECTED_GOALS_PER_90: "xG per 90 (Non-penalty)",
+    GOALS_PER_90: "Goals per 90 (Non-penalty)",
+    OPPOSITION_ELO: "Opposition ELO",
+    ELO_DIFFERENCE: "Difference of opposition ELO from player's team ELO",
+    SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: "Shots and assisted shots per 90 from receptions in zone 14 and 17",
+    EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: "xG per 90 from receptions in zone 14 and 17",
+    f"{NORMALISED}_{SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}": "Shots and assisted shots per 90 from receptions in zone 14 and 17 - Normalised score",
+    f"{NORMALISED}_{EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}": "xG per 90 from receptions in zone 14 and 17 (Non-penalty) - Normalised score",
+    f"{NORMALISED}_{EXPECTED_GOALS_PER_90}": "xG per 90 (Non-penalty) - Normalised score",
+    f"{NORMALISED}_{GOALS_PER_90}": "Goals per 90 (Non-penalty) - Normalised score",
+    RATIO_OF_GOALS_TO_EXPECTED_GOALS: "Goals / xG (Non-penalty) - Scaled",
+}

@@ -58,7 +58,8 @@ def read_and_transform_events_data():
         [MATCH_ID, PLAYER_ID, MATCH_PERIOD]
     )[EVENT_TIMESTAMP].shift(1)
     events_df[EVENT_TIMESTAMP_DIFF] = (
-        pd.to_datetime(events_df[EVENT_TIMESTAMP]) - pd.to_datetime(events_df[PREV_EVENT_TIMESTAMP])
+        pd.to_datetime(events_df[EVENT_TIMESTAMP])
+        - pd.to_datetime(events_df[PREV_EVENT_TIMESTAMP])
     ) / pd.Timedelta(seconds=1)
     events_df[PREV_PLAY_PATTERN_NAME] = events_df.groupby(
         [MATCH_ID, PLAYER_ID, MATCH_PERIOD]
@@ -111,23 +112,102 @@ def read_and_transform_events_data():
     return events_df
 
 
-def read_and_join_events_and_matches_data():
-    
-    # Read and transform events data
-    events_df = read_and_transform_events_data()
+def sigmoid(x, k, x0):
 
-    # Read in matches data
-    matches_df = pd.read_csv(f"{DATA_RAW_PATH}{MATCHES_DATA_NAME}")
+    return 1 / (1 + np.exp(-k * (x - x0)))
 
-    # Join matches data to events data
-    df = events_df.merge(
-        matches_df,
-        how=LEFT,
-        on=MATCH_ID
+
+def create_opponent_elo_weighting(df: pd.DataFrame, cap):
+
+    opposition_elo_df = df.groupby([MATCH_ID, TEAM_ID], as_index=False, dropna=False)[
+        OPPOSITION_ELO
+    ].max()
+    opposition_elo_median = opposition_elo_df[OPPOSITION_ELO].median()
+    opposition_elo_max = opposition_elo_df[OPPOSITION_ELO].max()
+    opposition_elo_min = opposition_elo_df[OPPOSITION_ELO].min()
+    k = SIGMOID_K_RANGE / (opposition_elo_max - opposition_elo_min)
+    x0 = opposition_elo_median
+    df[OPPOSITION_ELO_WEIGHTING] = sigmoid(df[OPPOSITION_ELO], k, x0)
+    df[OPPOSITION_ELO_WEIGHTING] = df[OPPOSITION_ELO_WEIGHTING].apply(
+        lambda x: max(x, cap)
     )
 
     return df
 
 
+def create_elo_difference_weighting(df: pd.DataFrame, cap):
+
+    df[ELO_DIFFERENCE] = df[OPPOSITION_ELO] - df[TEAM_ELO]
+    elo_difference_max = df[ELO_DIFFERENCE].max()
+    elo_difference_min = df[ELO_DIFFERENCE].min()
+    k = SIGMOID_K_RANGE / (elo_difference_max - elo_difference_min)
+    x0 = 0
+    df[ELO_DIFFERENCE_WEIGHTING] = sigmoid(df[ELO_DIFFERENCE], k, x0)
+    df[ELO_DIFFERENCE_WEIGHTING] = df[ELO_DIFFERENCE_WEIGHTING].apply(
+        lambda x: max(x, cap)
+    )
+
+    return df
+
+
+def transform_joined_data(df: pd.DataFrame):
+
+    df.loc[df[TEAM_ID] == df[HOME_TEAM_ID], TEAM_ELO] = df.loc[
+        df[TEAM_ID] == df[HOME_TEAM_ID], HOME_ELO
+    ]
+    df.loc[df[TEAM_ID] == df[AWAY_TEAM_ID], TEAM_ELO] = df.loc[
+        df[TEAM_ID] == df[AWAY_TEAM_ID], AWAY_ELO
+    ]
+    df.loc[df[TEAM_ID] == df[HOME_TEAM_ID], OPPOSITION_ELO] = df.loc[
+        df[TEAM_ID] == df[HOME_TEAM_ID], AWAY_ELO
+    ]
+    df.loc[df[TEAM_ID] == df[AWAY_TEAM_ID], OPPOSITION_ELO] = df.loc[
+        df[TEAM_ID] == df[AWAY_TEAM_ID], HOME_ELO
+    ]
+
+    df = df.drop(
+        [
+            HOME_TEAM_ID,
+            AWAY_TEAM_ID,
+            HOME_ELO,
+            AWAY_ELO,
+            HOME_TEAM_XG,
+            AWAY_TEAM_XG,
+            HOME_GOALS,
+            AWAY_GOALS,
+            MATCH_DATE_TIME,
+        ],
+        axis=1,
+    )
+
+    df = create_opponent_elo_weighting(df, OPPOSITION_ELO_CAP)
+
+    df = create_elo_difference_weighting(df, ELO_DIFFERENCE_CAP)
+
+    return df
+
+
+def read_and_join_events_and_matches_data():
+
+    # Read and transform events data
+    events_df = read_and_transform_events_data()
+
+    # Read in matches data
+    matches_df = pd.read_csv(
+        f"{DATA_RAW_PATH}{MATCH_LEVEL_DATA_CORRECTED_MAPPING_NAME}"
+    )
+
+    # Join matches data to events data
+    df = events_df.merge(matches_df, how=LEFT, on=MATCH_ID)
+
+    # Transform joined data
+    df = transform_joined_data(df)
+
+    # Save joined data
+    df.to_csv(f"{DATA_PROCESSED_PATH}{MERGED_EVENTS_MATCH_LEVEL_DATA_NAME}", index=False)
+
+    return df
+
+
 if __name__ == "__main__":
-    read_and_transform_events_data()
+    read_and_join_events_and_matches_data()

@@ -3,17 +3,47 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Circle, RegularPolygon
+from matplotlib.path import Path
+from matplotlib.projections.polar import PolarAxes
+from matplotlib.projections import register_projection
+from matplotlib.spines import Spine
+from matplotlib.transforms import Affine2D
 import seaborn as sns
+from typing import Optional
 from adjustText import adjust_text
+import textwrap
 from mplsoccer import Pitch, VerticalPitch
+from math import pi
+from plotnine import (
+    ggplot, aes, geom_polygon, geom_path, geom_line, geom_point, geom_text, labs, theme_void, theme,
+    element_blank, element_text, lims
+)
+from sklearn.preprocessing import MinMaxScaler
 
 from src.config import *
+
+
+def player_team_dataset():
+
+    # Read in merged events and match data
+    events_matches_df = pd.read_csv(
+        f"{DATA_PROCESSED_PATH}{MERGED_EVENTS_MATCH_LEVEL_DATA_NAME}"
+    )
+
+    events_matches_df = events_matches_df.groupby(
+        [PLAYER_ID, PLAYER_NAME, MATCH_ID], as_index=False, dropna=False
+    )[[TEAM_ELO, OPPOSITION_ELO, ELO_DIFFERENCE]].first()
+
+    return events_matches_df
 
 
 def possesions_dataset():
 
     # Read in processed events data
-    events_df = pd.read_csv(f"{DATA_PROCESSED_PATH}{TRANSFOMED_EVENTS_DATA_NAME}")
+    events_df = pd.read_csv(
+        f"{DATA_PROCESSED_PATH}{MERGED_EVENTS_MATCH_LEVEL_DATA_NAME}"
+    )
 
     # Find ball receipt events
     posessions = events_df[
@@ -37,6 +67,8 @@ def possesions_dataset():
             TYPE_NAME,
             LOCATION_X,
             LOCATION_Y,
+            OPPOSITION_ELO_WEIGHTING,
+            ELO_DIFFERENCE_WEIGHTING,
         ]
     ]
 
@@ -197,17 +229,19 @@ def plot_receptions_on_pitch(receptions):
         )
 
 
-def calcluate_player_level_values_for_receptions(
-    receptions: pd.DataFrame, subset: list
-):
+def calcluate_values_for_receptions(receptions: pd.DataFrame, subset: list):
 
-    # Calculate player-level values for receptions
-    total_minutes_per_player = receptions.groupby(
-        subset + [MATCH_ID], as_index=False, dropna=False
-    )[MINUTES_PLAYED].max()
-    total_minutes_per_player = total_minutes_per_player.groupby(
-        subset, as_index=False, dropna=False
-    )[MINUTES_PLAYED].sum()
+    if MATCH_ID in subset:
+        total_minutes_per_player = receptions.groupby(
+            subset, as_index=False, dropna=False
+        )[[MINUTES_PLAYED, OPPOSITION_ELO_WEIGHTING, ELO_DIFFERENCE_WEIGHTING]].max()
+    else:
+        total_minutes_per_player = receptions.groupby(
+            subset + [MATCH_ID], as_index=False, dropna=False
+        )[MINUTES_PLAYED].max()
+        total_minutes_per_player = total_minutes_per_player.groupby(
+            subset, as_index=False, dropna=False
+        )[MINUTES_PLAYED].sum()
 
     total_receptions_per_player = receptions.groupby(
         subset, as_index=False, dropna=False
@@ -275,7 +309,6 @@ def calcluate_player_level_values_for_receptions(
         )
     )
 
-    # Merge player-level values for receptions
     player_reception_metrics = total_minutes_per_player.merge(
         total_receptions_per_player, on=subset, how=LEFT
     )
@@ -306,13 +339,9 @@ def calcluate_player_level_values_for_receptions(
     return player_reception_metrics
 
 
-def output_metrics_for_receptions(
-    receptions: pd.DataFrame, subset=[PLAYER_ID, PLAYER_NAME]
+def calculate_reception_metrics(
+    player_reception_metrics: pd.DataFrame, subset: list[str]
 ):
-
-    player_reception_metrics = calcluate_player_level_values_for_receptions(
-        receptions, subset
-    )
 
     # Determine metrics per 90 or per reception
     player_reception_metrics[RECEPTIONS_PER_90] = (
@@ -368,25 +397,113 @@ def output_metrics_for_receptions(
         * 90
     )
 
-    player_reception_metrics = player_reception_metrics[
-        subset
-        + [
-            RECEPTIONS_PER_90,
-            RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
-            PERCENTAGE_RECEPTIONS_IN_ZONE_14_AND_17,
-            RECEPTIONS_IN_FINAL_THIRD_PER_90,
-            PERCENTAGE_RECEPTIONS_IN_FINAL_THIRD,
-            SHOOTING_OPPORTUNITIES_PER_RECEPTION_IN_ZONE_14_AND_17,
-            SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
-            SHOTS_PER_RECEPTION_IN_ZONE_14_AND_17,
-            SHOTS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
-            EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
-            MEAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
-            MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
-            MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
-            MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
+    if MATCH_ID in subset:
+        player_reception_metrics = player_reception_metrics[
+            subset
+            + [
+                MINUTES_PLAYED,
+                OPPOSITION_ELO_WEIGHTING,
+                ELO_DIFFERENCE_WEIGHTING,
+                RECEPTIONS_PER_90,
+                RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
+                RECEPTIONS_IN_FINAL_THIRD_PER_90,
+                SHOOTING_OPPORTUNITIES_PER_RECEPTION_IN_ZONE_14_AND_17,
+                SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                SHOTS_PER_RECEPTION_IN_ZONE_14_AND_17,
+                SHOTS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
+                MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
+            ]
+        ]
+    else:
+        player_reception_metrics = player_reception_metrics[
+            subset
+            + [
+                RECEPTIONS_PER_90,
+                RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
+                PERCENTAGE_RECEPTIONS_IN_ZONE_14_AND_17,
+                RECEPTIONS_IN_FINAL_THIRD_PER_90,
+                PERCENTAGE_RECEPTIONS_IN_FINAL_THIRD,
+                SHOOTING_OPPORTUNITIES_PER_RECEPTION_IN_ZONE_14_AND_17,
+                SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                SHOTS_PER_RECEPTION_IN_ZONE_14_AND_17,
+                SHOTS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEDIAN_EXPECTED_GOALS_PER_SHOT_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+                MEAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
+                MEDIAN_EVENT_SCORE_PER_RECEPTION_IN_ZONE_14_AND_17,
+            ]
+        ]
+
+    return player_reception_metrics
+
+
+def normalise_metrics(df: pd.DataFrame, metric_columns: list):
+
+    for column in metric_columns:
+        df[column] = (
+            df[column] * df[OPPOSITION_ELO_WEIGHTING] * df[ELO_DIFFERENCE_WEIGHTING]
+        )
+        df[column] = df[column] * df[MINUTES_PLAYED]
+
+    df = df.groupby([PLAYER_ID, PLAYER_NAME], as_index=False, dropna=False)[
+        metric_columns + [MINUTES_PLAYED]
+    ].sum()
+
+    for column in metric_columns:
+        df[column] = df[column] / df[MINUTES_PLAYED]
+        df[column] = (df[column] * 100) / df[column].max()
+
+    return df
+
+
+def output_normalised_metrics_for_receptions(receptions: pd.DataFrame):
+
+    player_normalised_reception_metrics = calcluate_values_for_receptions(
+        receptions, [MATCH_ID, PLAYER_ID, PLAYER_NAME]
+    )
+    player_normalised_reception_metrics = calculate_reception_metrics(
+        player_normalised_reception_metrics, [MATCH_ID, PLAYER_ID, PLAYER_NAME]
+    )
+
+    metric_columns = [
+        column
+        for column in player_normalised_reception_metrics.columns
+        if column
+        not in [
+            MATCH_ID,
+            PLAYER_ID,
+            PLAYER_NAME,
+            MINUTES_PLAYED,
+            OPPOSITION_ELO_WEIGHTING,
+            ELO_DIFFERENCE_WEIGHTING,
         ]
     ]
+
+    player_normalised_reception_metrics = normalise_metrics(
+        player_normalised_reception_metrics, metric_columns
+    )
+
+    player_normalised_reception_metrics.to_csv(
+        f"{DATA_OUTPUTS_PATH}{PLAYER}_{RECEPTIONS_NORMALISED_METRICS_NAME}",
+        index=False,
+    )
+
+    return player_normalised_reception_metrics
+
+
+def output_metrics_for_receptions(
+    receptions: pd.DataFrame, subset=[PLAYER_ID, PLAYER_NAME]
+):
+
+    player_reception_metrics = calcluate_values_for_receptions(receptions, subset)
+    player_reception_metrics = calculate_reception_metrics(
+        player_reception_metrics, subset
+    )
 
     # Save the reception metrics
     if subset == [PLAYER_ID, PLAYER_NAME]:
@@ -403,15 +520,19 @@ def output_metrics_for_receptions(
     return player_reception_metrics
 
 
-def calcluate_player_level_values_for_goals(posessions: pd.DataFrame, subset):
+def calcluate_values_for_goals(posessions: pd.DataFrame, subset):
 
-    # Calculate player-level values for goals
-    total_minutes_per_player = posessions.groupby(
-        subset + [MATCH_ID], as_index=False, dropna=False
-    )[MINUTES_PLAYED].max()
-    total_minutes_per_player = total_minutes_per_player.groupby(
-        subset, as_index=False, dropna=False
-    )[MINUTES_PLAYED].sum()
+    if MATCH_ID in subset:
+        total_minutes_per_player = posessions.groupby(
+            subset, as_index=False, dropna=False
+        )[[MINUTES_PLAYED, OPPOSITION_ELO_WEIGHTING, ELO_DIFFERENCE_WEIGHTING]].max()
+    else:
+        total_minutes_per_player = posessions.groupby(
+            subset + [MATCH_ID], as_index=False, dropna=False
+        )[MINUTES_PLAYED].max()
+        total_minutes_per_player = total_minutes_per_player.groupby(
+            subset, as_index=False, dropna=False
+        )[MINUTES_PLAYED].sum()
 
     posessions_per_player = posessions.groupby(subset, as_index=False, dropna=False)[
         POSSESSION_INDEX
@@ -479,9 +600,7 @@ def calcluate_player_level_values_for_goals(posessions: pd.DataFrame, subset):
     return player_goal_metrics
 
 
-def output_metrics_for_goals(posessions: pd.DataFrame, subset=[PLAYER_ID, PLAYER_NAME]):
-
-    player_goal_metrics = calcluate_player_level_values_for_goals(posessions, subset)
+def calculate_goals_metrics(player_goal_metrics: pd.DataFrame, subset: list[str]):
 
     # Determine metrics per 90 or per posession
     player_goal_metrics[SHOOTING_OPPORTUNITIES_PER_90] = (
@@ -517,22 +636,86 @@ def output_metrics_for_goals(posessions: pd.DataFrame, subset=[PLAYER_ID, PLAYER
         player_goal_metrics[TOTAL_GOALS] / player_goal_metrics[TOTAL_EXPECTED_GOALS]
     )
 
-    player_goal_metrics = player_goal_metrics[
-        subset
-        + [
-            SHOOTING_OPPORTUNITIES_PER_90,
-            SHOOTING_OPPORTUNITIES_PER_POSSESSION,
-            SHOTS_PER_90,
-            SHOTS_PER_POSSESSION,
-            GOALS_PER_90,
-            GOALS_PER_SHOT,
-            GOALS_PER_POSSESSION,
-            EXPECTED_GOALS_PER_90,
-            MEAN_EXPECTED_GOALS_PER_SHOT,
-            MEDIAN_EXPECTED_GOALS_PER_SHOT,
-            RATIO_OF_GOALS_TO_EXPECTED_GOALS,
+    if MATCH_ID in subset:
+        player_goal_metrics = player_goal_metrics[
+            subset
+            + [
+                MINUTES_PLAYED,
+                OPPOSITION_ELO_WEIGHTING,
+                ELO_DIFFERENCE_WEIGHTING,
+                SHOOTING_OPPORTUNITIES_PER_90,
+                SHOOTING_OPPORTUNITIES_PER_POSSESSION,
+                SHOTS_PER_90,
+                SHOTS_PER_POSSESSION,
+                GOALS_PER_90,
+                GOALS_PER_SHOT,
+                GOALS_PER_POSSESSION,
+                EXPECTED_GOALS_PER_90,
+                MEAN_EXPECTED_GOALS_PER_SHOT,
+                MEDIAN_EXPECTED_GOALS_PER_SHOT,
+                RATIO_OF_GOALS_TO_EXPECTED_GOALS,
+            ]
+        ]
+    else:
+        player_goal_metrics = player_goal_metrics[
+            subset
+            + [
+                SHOOTING_OPPORTUNITIES_PER_90,
+                SHOOTING_OPPORTUNITIES_PER_POSSESSION,
+                SHOTS_PER_90,
+                SHOTS_PER_POSSESSION,
+                GOALS_PER_90,
+                GOALS_PER_SHOT,
+                GOALS_PER_POSSESSION,
+                EXPECTED_GOALS_PER_90,
+                MEAN_EXPECTED_GOALS_PER_SHOT,
+                MEDIAN_EXPECTED_GOALS_PER_SHOT,
+                RATIO_OF_GOALS_TO_EXPECTED_GOALS,
+            ]
+        ]
+
+    return player_goal_metrics
+
+
+def output_normalised_metrics_for_goals(possessions: pd.DataFrame):
+
+    player_normalised_goals_metrics = calcluate_values_for_goals(
+        possessions, [MATCH_ID, PLAYER_ID, PLAYER_NAME]
+    )
+    player_normalised_goals_metrics = calculate_goals_metrics(
+        player_normalised_goals_metrics, [MATCH_ID, PLAYER_ID, PLAYER_NAME]
+    )
+
+    metric_columns = [
+        column
+        for column in player_normalised_goals_metrics.columns
+        if column
+        not in [
+            MATCH_ID,
+            PLAYER_ID,
+            PLAYER_NAME,
+            MINUTES_PLAYED,
+            OPPOSITION_ELO_WEIGHTING,
+            ELO_DIFFERENCE_WEIGHTING,
         ]
     ]
+
+    player_normalised_goals_metrics = normalise_metrics(
+        player_normalised_goals_metrics, metric_columns
+    )
+
+    player_normalised_goals_metrics.to_csv(
+        f"{DATA_OUTPUTS_PATH}{PLAYER}_{GOALS_NORMALISED_METRICS_NAME}",
+        index=False,
+    )
+
+    return player_normalised_goals_metrics
+
+
+def output_metrics_for_goals(posessions: pd.DataFrame, subset=[PLAYER_ID, PLAYER_NAME]):
+
+    player_goal_metrics = calcluate_values_for_goals(posessions, subset)
+    player_goal_metrics = calculate_goals_metrics(player_goal_metrics, subset)
 
     # Save the goal metrics
     if subset == [PLAYER_ID, PLAYER_NAME]:
@@ -549,126 +732,40 @@ def output_metrics_for_goals(posessions: pd.DataFrame, subset=[PLAYER_ID, PLAYER
     return player_goal_metrics
 
 
-def calculate_team_metrics(matches_df, team_id):
-
-    # Filter matches for team
-    team_matches = matches_df[
-        (matches_df[HOME_TEAM_ID] == team_id) | (matches_df[AWAY_TEAM_ID] == team_id)
-    ]
-
-    # Calculate team and opponent ELO ratings
-    team_matches.loc[team_matches[HOME_TEAM_ID] == team_id, TEAM_ELO] = team_matches[
-        HOME_ELO
-    ]
-    team_matches.loc[team_matches[AWAY_TEAM_ID] == team_id, TEAM_ELO] = team_matches[
-        AWAY_ELO
-    ]
-    team_matches.loc[team_matches[HOME_TEAM_ID] == team_id, OPPOSITION_ELO] = (
-        team_matches[AWAY_ELO]
-    )
-    team_matches.loc[team_matches[AWAY_TEAM_ID] == team_id, OPPOSITION_ELO] = (
-        team_matches[HOME_ELO]
-    )
-
-    # Calculate team and opponent expected goals
-    team_matches.loc[team_matches[HOME_TEAM_ID] == team_id, TEAM_EXPECTED_GOALS] = (
-        team_matches[HOME_TEAM_XG]
-    )
-    team_matches.loc[team_matches[AWAY_TEAM_ID] == team_id, TEAM_EXPECTED_GOALS] = (
-        team_matches[AWAY_TEAM_XG]
-    )
-    team_matches.loc[team_matches[HOME_TEAM_ID] == team_id, OPPONENT_EXPECTED_GOALS] = (
-        team_matches[AWAY_TEAM_XG]
-    )
-    team_matches.loc[team_matches[AWAY_TEAM_ID] == team_id, OPPONENT_EXPECTED_GOALS] = (
-        team_matches[HOME_TEAM_XG]
-    )
-
-    # Calculate team-level metrics
-    team_matches[DIFFERENCE_TO_OPPONENT_ELO] = (
-        team_matches[TEAM_ELO] - team_matches[OPPOSITION_ELO]
-    )
-    team_matches[DIFFERENCE_TO_OPPONENT_EXPECTED_GOALS] = (
-        team_matches[TEAM_EXPECTED_GOALS] - team_matches[OPPONENT_EXPECTED_GOALS]
-    )
-
-    # Calcluate mean and median values for team-level metrics and add to data table with team ID
-    team_matches[TEAM_ID] = team_id
-
-    mean_team_elo_rating = team_matches.groupby(TEAM_ID, as_index=False, dropna=False)[
-        TEAM_ELO
-    ].agg(
-        mean_team_elo_rating=MEAN,
-        median_team_elo_rating=MEDIAN,
-    )
-
-    mean_opposition_elo_rating = team_matches.groupby(
-        TEAM_ID, as_index=False, dropna=False
-    )[OPPOSITION_ELO].agg(
-        mean_opposition_elo_rating=MEAN,
-        median_opposition_elo_rating=MEDIAN,
-    )
-
-    mean_expected_goals = team_matches.groupby(TEAM_ID, as_index=False, dropna=False)[
-        TEAM_EXPECTED_GOALS
-    ].mean()
-    mean_expected_goals = mean_expected_goals.rename(
-        columns={TEAM_EXPECTED_GOALS: MEAN_EXPECTED_GOALS}
-    )
-
-    difference_to_opponent_elo = team_matches.groupby(
-        TEAM_ID, as_index=False, dropna=False
-    )[DIFFERENCE_TO_OPPONENT_ELO].agg(
-        mean_difference_to_opponent_elo=MEAN,
-        median_difference_to_opponent_elo=MEDIAN,
-    )
-
-    difference_to_opponent_expected_goals = team_matches.groupby(
-        TEAM_ID, as_index=False, dropna=False
-    )[DIFFERENCE_TO_OPPONENT_EXPECTED_GOALS].agg(
-        mean_difference_to_opponent_expected_goals=MEAN,
-        median_difference_to_opponent_expected_goals=MEDIAN,
-    )
-
-    team_metrics = mean_team_elo_rating.merge(
-        mean_opposition_elo_rating, on=TEAM_ID, how=LEFT
-    )
-    team_metrics = team_metrics.merge(mean_expected_goals, on=TEAM_ID, how=LEFT)
-    team_metrics = team_metrics.merge(difference_to_opponent_elo, on=TEAM_ID, how=LEFT)
-    team_metrics = team_metrics.merge(
-        difference_to_opponent_expected_goals, on=TEAM_ID, how=LEFT
-    )
-
-    return team_metrics
-
-
-def output_team_metrics():
-
-    # Read in match data
-    matches_df = pd.read_csv(f"{DATA_RAW_PATH}{MATCHES_DATA_NAME}")
-
-    # Calculate team metrics for each team
-    team_metrics = pd.DataFrame()
-    for team_id in TEAM_IDS:
-        team_metrics = pd.concat(
-            [team_metrics, calculate_team_metrics(matches_df, team_id)],
-            ignore_index=True,
-        )
-
-    # Save the team metrics
-    team_metrics.to_csv(f"{DATA_OUTPUTS_PATH}{TEAM_METRICS_NAME}", index=False)
-
-    return team_metrics
-
-
-def create_receptions_slide_table(player_receptions_metrics):
+def create_receptions_slide_table(
+    player_receptions_metrics, normalised_player_receptions_metrics
+):
 
     # Select required metrics
     receptions_slide_table = player_receptions_metrics[
         [
             PLAYER_NAME,
-            RECEPTIONS_PER_90,
             RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
+            PERCENTAGE_RECEPTIONS_IN_ZONE_14_AND_17,
+            PERCENTAGE_RECEPTIONS_IN_FINAL_THIRD,
+        ]
+    ]
+
+    receptions_slide_table = receptions_slide_table.merge(
+        normalised_player_receptions_metrics[
+            [
+                PLAYER_NAME,
+                RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
+            ]
+        ].rename(
+            columns={
+                RECEPTIONS_IN_ZONE_14_AND_17_PER_90: f"{NORMALISED}_{RECEPTIONS_IN_ZONE_14_AND_17_PER_90}"
+            }
+        ),
+        on=PLAYER_NAME,
+        how=LEFT,
+    )
+
+    receptions_slide_table = receptions_slide_table[
+        [
+            PLAYER_NAME,
+            RECEPTIONS_IN_ZONE_14_AND_17_PER_90,
+            f"{NORMALISED}_{RECEPTIONS_IN_ZONE_14_AND_17_PER_90}",
             PERCENTAGE_RECEPTIONS_IN_ZONE_14_AND_17,
             PERCENTAGE_RECEPTIONS_IN_FINAL_THIRD,
         ]
@@ -686,6 +783,54 @@ def create_receptions_slide_table(player_receptions_metrics):
     )
 
 
+def create_radar_plot_inputs(
+    normalised_player_receptions_metrics,
+    player_goals_metrics,
+    normalised_player_goals_metrics,
+):
+
+    normalised_player_receptions_metrics = normalised_player_receptions_metrics[
+        [
+            PLAYER_NAME,
+            SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+            EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+        ]
+    ].rename(
+        columns={
+            SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: f"{NORMALISED}_{SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+            EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: f"{NORMALISED}_{EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+        }
+    )
+    normalised_player_goals_metrics = normalised_player_goals_metrics[
+        [PLAYER_NAME, GOALS_PER_90]
+    ].rename(columns={GOALS_PER_90: f"{NORMALISED}_{GOALS_PER_90}"})
+    player_goals_metrics = player_goals_metrics[
+        [
+            PLAYER_NAME,
+            SHOOTING_OPPORTUNITIES_PER_POSSESSION,
+            RATIO_OF_GOALS_TO_EXPECTED_GOALS,
+        ]
+    ]
+
+    metrics_to_be_scaled = [
+        metric for metric in player_goals_metrics.columns if metric not in [PLAYER_NAME]
+    ]
+
+    for metric in metrics_to_be_scaled:
+        player_goals_metrics[metric] = (
+            player_goals_metrics[metric] * 100 / player_goals_metrics[metric].max()
+        )
+
+    radar_plot_inputs = normalised_player_receptions_metrics.merge(
+        normalised_player_goals_metrics, on=PLAYER_NAME, how=LEFT
+    )
+    radar_plot_inputs = radar_plot_inputs.merge(
+        player_goals_metrics, on=PLAYER_NAME, how=LEFT
+    )
+
+    return radar_plot_inputs
+
+
 def closest_difference(df, column):
     values = df[column].values  # Extract values as a numpy array
 
@@ -699,22 +844,29 @@ def closest_difference(df, column):
     return closest_diff
 
 
+def wrap_label(label, width):
+    return "\n".join(textwrap.wrap(label, width))
+
+
 def create_scatter_plot_of_two_metrics(
-    df: pd.DataFrame, x_metric: str, y_metric: str, y_x_line: bool = False
+    df: pd.DataFrame,
+    x_metric: str,
+    y_metric: str,
+    colour_mapping: dict,
+    size_metric: Optional[str] = None,
+    y_x_line: bool = False,
 ):
 
-    df[PLAYER_TEAM_COMBO] = df[PLAYER_NAME] + " (" + df[TEAM_NAME] + ")"
-
-    # Create a color palette based on the unique combinations
-    unique_combinations = df[PLAYER_TEAM_COMBO].unique()
-    palette = sns.color_palette("husl", len(unique_combinations))
-    color_mapping = {combo: palette[i] for i, combo in enumerate(unique_combinations)}
+    if TEAM_ID in df.columns:
+        df[PLAYER_TEAM_COMBO] = df[PLAYER_NAME] + " (" + df[TEAM_NAME] + ")"
+    else:
+        df[PLAYER_TEAM_COMBO] = df[PLAYER_NAME]
 
     # Map colors to each point in the DataFrame
-    df[COLOR] = df[PLAYER_TEAM_COMBO].map(color_mapping)
+    df[COLOR] = df[PLAYER_NAME].map(colour_mapping)
 
     # Create a figure
-    fig, ax = plt.subplots(figsize=(15, 5.8))
+    fig, ax = plt.subplots(figsize=(15, 9.5))
 
     # Determine axis limits for boundary checks
     x_min, x_max = df[x_metric].min(), df[x_metric].max()
@@ -823,8 +975,16 @@ def create_scatter_plot_of_two_metrics(
             zorder=1,
         )
         ax.text(
-            0.99 * x_max, 1.01 * x_max, GOALS_EQUAL_XG, fontsize=16, ha=RIGHT, va=BOTTOM
+            0.99 * x_max, 1.01 * x_max, GOALS_EQUAL_XG, fontsize=20, ha=RIGHT, va=BOTTOM
         )
+
+    # Determine the size of each point
+    if size_metric:
+        sizes = (
+            (df[size_metric]) / (df[size_metric].max())
+        ) * 400 + 50  # Scale size to range [50, 250]
+    else:
+        sizes = 300
 
     # Plot the scatter plot with colors
     for _, row in df.iterrows():
@@ -833,7 +993,7 @@ def create_scatter_plot_of_two_metrics(
             row[y_metric],
             color=row[COLOR],
             edgecolor=WHITE,
-            s=100,
+            s=sizes if isinstance(sizes, int) else sizes[row.name],
             linewidth=2,
             zorder=2,
         )
@@ -843,18 +1003,22 @@ def create_scatter_plot_of_two_metrics(
             row[x_metric] + row[X_OFFSET],
             row[y_metric] + row[Y_OFFSET],
             row[PLAYER_TEAM_COMBO],
-            fontsize=16,
+            fontsize=20,
             ha=row[HA],
             va=row[VA],
             zorder=3,
         )
 
     ax.margins(x=0.02, y=0.02)
-    ax.tick_params(axis=BOTH, labelsize=16)
+    ax.tick_params(axis=BOTH, labelsize=20)
     ax.grid(True, linestyle=DASH_LINE, alpha=0.5)
 
-    ax.set_xlabel(CHART_LABELS[x_metric], fontsize=16, labelpad=8)
-    ax.set_ylabel(CHART_LABELS[y_metric], fontsize=16, labelpad=8)
+    # Set axis labels with wrapped text
+    x_label = wrap_label(CHART_LABELS[x_metric], 85)
+    y_label = wrap_label(CHART_LABELS[y_metric], 55)
+
+    ax.set_xlabel(x_label, fontsize=20, labelpad=8)
+    ax.set_ylabel(y_label, fontsize=20, labelpad=8)
 
     # Save the scatter plot
     fig.tight_layout()
@@ -864,27 +1028,218 @@ def create_scatter_plot_of_two_metrics(
     )
 
 
-def create_scatter_plot_for_goal_scoring_metrics(player_team_goals_metrics):
+def create_density_plot(df: pd.DataFrame, x_metric: str, colour_mapping: dict):
+
+    # Create a color palette based on the unique combinations
+    unique_players = df[PLAYER_NAME].unique()
+    palette = sns.color_palette("husl", len(unique_players))
+
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(15, 5.8))
+
+    # Use seaborn kdeplot for each player
+    for player in unique_players:
+        sns.kdeplot(
+            data=df[df[PLAYER_NAME] == player],
+            x=x_metric,
+            label=player,
+            palette=colour_mapping[player],
+            fill=True,
+            alpha=0.2,
+        )
+
+    ax.tick_params(axis=BOTH, labelsize=16)
+    ax.grid(True, linestyle=DASH_LINE, alpha=0.5)
+
+    ax.set_xlabel(CHART_LABELS[x_metric], fontsize=16, labelpad=8)
+    ax.set_ylabel(DENSITY, fontsize=16, labelpad=8)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, title=PLAYER)
+
+    # Save the scatter plot
+    fig.tight_layout()
+    plt.show()
+    # fig.savefig(
+    #     f"{DATA_OUTPUTS_PATH}{x_metric}_{DENSITY_PLOT_NAME}",
+    #     bbox_inches=TIGHT,
+    # )
+
+
+def create_box_plot(df: pd.DataFrame, y_metric: str, colour_mapping: dict):
+
+    player_order = (
+        df.groupby(PLAYER_NAME)[y_metric].median().sort_values(ascending=False).index
+    )
+
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(15, 9.5))
+
+    # Create a box plot using seaborn
+    sns.boxplot(
+        data=df,
+        x=y_metric,
+        y=PLAYER_NAME,
+        order=player_order,
+        palette=[colour_mapping[player] for player in player_order],
+    )
+
+    # Customize the plot
+    ax.tick_params(axis="both", labelsize=20)
+    ax.grid(True, linestyle=DASH_LINE, axis="x", alpha=0.5)
+
+    ax.set_xlabel(CHART_LABELS[y_metric], fontsize=20, labelpad=8)
+    ax.set_ylabel(None)
+
+    # Save the box plot
+    fig.tight_layout()
+    fig.savefig(
+        f"{DATA_OUTPUTS_PATH}{y_metric}_{BOX_PLOT_NAME}",
+        bbox_inches=TIGHT,
+    )
+
+
+def create_radar_plot(df: pd.DataFrame, player_colour_mapping: dict, chart_labels: dict):
+    # Define the metrics to be plotted
+    metrics = [metric for metric in df.columns if metric != PLAYER_NAME]  # Replace PLAYER_NAME with 'PLAYER_NAME' string if undefined
+
+    # Define the number of variables
+    num_metrics = len(metrics)
+
+    # Angles for radar plot
+    angles = [n / float(num_metrics) * 2 * pi for n in range(num_metrics)]
+    angles += angles[:1]  # Close the radar chart
+
+    # Initialize radar plot with adjusted width
+    fig, ax = plt.subplots(figsize=(10, 8), subplot_kw=dict(polar=True))
+
+    # Plot each player's data with assigned colors
+    for _, player in df.iterrows():
+        values = player[metrics].tolist()
+        values += values[:1]  # Close the radar chart
+        ax.plot(angles, values, label=player[PLAYER_NAME], 
+                color=player_colour_mapping[player[PLAYER_NAME]], linewidth=2)
+        ax.fill(angles, values, alpha=0.2, color=player_colour_mapping[player[PLAYER_NAME]])
+
+    # Add metric labels
+    labels = [wrap_label(chart_labels[metric], 30) for metric in metrics]
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=12, ha='center')
+
+    # Adjust label positions dynamically to avoid overlap
+    for label, angle in zip(ax.get_xticklabels(), angles[:-1]):
+        if (0 <= angle < np.pi/2) or (3*np.pi/2 < angle < 2*np.pi):
+            label.set_ha('left')
+            label.set_va('center')
+        elif angle == np.pi/2:
+            label.set_ha('center')
+            label.set_va('bottom')
+        elif np.pi/2 < angle < (3*np.pi)/2:
+            label.set_ha('right')
+            label.set_va('center')
+        elif angle == (3*np.pi)/2:
+            label.set_ha('center')
+            label.set_va('top')
+
+    # Add faint y-axis grid lines
+    ax.set_yticks([50, 75, 100])
+    ax.set_yticklabels(['50', '75', '100'], color='black', fontsize=10)
+    ax.yaxis.grid(True, color='black', linestyle='--', alpha=0.5)
+
+    # Set straight edges for the radar chart
+    ax.spines['polar'].set_visible(False)
+    ax.grid(color='black', linestyle='-', linewidth=1, alpha=0.5)
+
+    # Add legend with title
+    ax.legend(loc='upper right', bbox_to_anchor=(1.5, 1.1), title=PLAYER, fontsize=12, title_fontsize=12)
+
+    # Save the radar plot
+    fig.tight_layout()
+    fig.savefig(f"{DATA_OUTPUTS_PATH}{RADAR_PLOT_NAME}", bbox_inches='tight')
+
+
+def create_box_plots_for_player_team_metrics(player_team_metrics, colour_mapping):
+
+    create_box_plot(player_team_metrics, OPPOSITION_ELO, colour_mapping)
+    create_box_plot(player_team_metrics, ELO_DIFFERENCE, colour_mapping)
+
+
+def create_scatter_plot_for_reception_metrics(
+    player_receptions_metrics, normalised_player_receptions_metrics, colour_mapping
+):
 
     create_scatter_plot_of_two_metrics(
-        player_team_goals_metrics,
-        SHOOTING_OPPORTUNITIES_PER_POSSESSION,
-        SHOTS_PER_POSSESSION,
+        player_receptions_metrics,
+        SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+        EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17,
+        colour_mapping,
     )
+
+    normalised_player_receptions_metrics = normalised_player_receptions_metrics.rename(
+        columns={
+            SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: f"{NORMALISED}_{SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+            EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17: f"{NORMALISED}_{EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+        }
+    )
+
     create_scatter_plot_of_two_metrics(
-        player_team_goals_metrics, SHOTS_PER_90, MEAN_EXPECTED_GOALS_PER_SHOT
+        normalised_player_receptions_metrics,
+        f"{NORMALISED}_{SHOOTING_OPPORTUNITIES_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+        f"{NORMALISED}_{EXPECTED_GOALS_PER_90_FROM_RECEPTIONS_IN_ZONE_14_AND_17}",
+        colour_mapping,
     )
+
+
+def create_scatter_plot_for_goal_scoring_metrics(
+    player_goals_metrics, normalised_player_goals_metrics, colour_mapping
+):
+
     create_scatter_plot_of_two_metrics(
-        player_team_goals_metrics, EXPECTED_GOALS_PER_90, GOALS_PER_90, y_x_line=True
+        player_goals_metrics,
+        EXPECTED_GOALS_PER_90,
+        GOALS_PER_90,
+        colour_mapping,
+        y_x_line=True,
     )
+
+    normalised_player_goals_metrics = normalised_player_goals_metrics.rename(
+        columns={
+            EXPECTED_GOALS_PER_90: f"{NORMALISED}_{EXPECTED_GOALS_PER_90}",
+            GOALS_PER_90: f"{NORMALISED}_{GOALS_PER_90}",
+        }
+    )
+
+    create_scatter_plot_of_two_metrics(
+        normalised_player_goals_metrics,
+        f"{NORMALISED}_{EXPECTED_GOALS_PER_90}",
+        f"{NORMALISED}_{GOALS_PER_90}",
+        colour_mapping,
+    )
+
+
+def get_colour_palette_for_players(df):
+
+    unique_players = df[PLAYER_NAME].unique()
+    palette = sns.color_palette("husl", len(unique_players))
+    player_color_mapping = {
+        player: color for player, color in zip(unique_players, palette)
+    }
+
+    return player_color_mapping
 
 
 def analysis():
 
-    # Get the receptions dataset
-    posessions = possesions_dataset()
+    # Get the receptions and player team datasets
+    possessions = possesions_dataset()
+    player_team_metrics = player_team_dataset()
 
-    receptions = posessions[posessions[TYPE_NAME] == BALL_RECEIPT]
+    # Set colour palette for each player
+    player_color_mapping = get_colour_palette_for_players(player_team_metrics)
+
+    # Create density plots for player team metrics
+    create_box_plots_for_player_team_metrics(player_team_metrics, player_color_mapping)
+
+    receptions = possessions[possessions[TYPE_NAME] == BALL_RECEIPT]
 
     # Loop through each plaer and create heatmap of receptions
     plot_receptions_on_pitch(receptions)
@@ -896,24 +1251,45 @@ def analysis():
     player_team_receptions_metrics = output_metrics_for_receptions(
         receptions, [PLAYER_ID, PLAYER_NAME, TEAM_ID, TEAM_NAME]
     )
+    normalised_player_receptions_metrics = output_normalised_metrics_for_receptions(
+        receptions
+    )
+
+    # Create table for receptions slide
+    create_receptions_slide_table(
+        player_receptions_metrics, normalised_player_receptions_metrics
+    )
+
+    # Create scatter plot for receptions metrics
+    create_scatter_plot_for_reception_metrics(
+        player_receptions_metrics,
+        normalised_player_receptions_metrics,
+        player_color_mapping,
+    )
 
     # Create output metrics for goals
     player_goals_metrics = output_metrics_for_goals(
-        posessions, [PLAYER_ID, PLAYER_NAME]
+        possessions, [PLAYER_ID, PLAYER_NAME]
     )
     player_team_goals_metrics = output_metrics_for_goals(
-        posessions, [PLAYER_ID, PLAYER_NAME, TEAM_ID, TEAM_NAME]
+        possessions, [PLAYER_ID, PLAYER_NAME, TEAM_ID, TEAM_NAME]
     )
-
-    # Create team-level metrics
-    team_metrics = output_team_metrics()
-
-    # Create table for receptions slide
-    create_receptions_slide_table(player_receptions_metrics)
+    normalised_player_goals_metrics = output_normalised_metrics_for_goals(possessions)
 
     # Create scatter plots for goal scoring metrics
-    create_scatter_plot_for_goal_scoring_metrics(player_team_goals_metrics)
+    create_scatter_plot_for_goal_scoring_metrics(
+        player_goals_metrics, normalised_player_goals_metrics, player_color_mapping
+    )
 
+    # Create radar plot of key metrics
+    radar_plot_inputs = create_radar_plot_inputs(
+        normalised_player_receptions_metrics,
+        player_goals_metrics,
+        normalised_player_goals_metrics,
+    )
+
+    # Create radar plot
+    create_radar_plot(radar_plot_inputs, player_color_mapping, CHART_LABELS)
 
 if __name__ == "__main__":
     analysis()
