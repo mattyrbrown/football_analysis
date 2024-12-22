@@ -444,6 +444,8 @@ def calculate_reception_metrics(
 
 def normalise_metrics(df: pd.DataFrame, metric_columns: list):
 
+    df = df[(df[OPPOSITION_ELO_WEIGHTING].notnull()) & (df[ELO_DIFFERENCE_WEIGHTING].notnull())]
+
     for column in metric_columns:
         df[column] = (
             df[column] * df[OPPOSITION_ELO_WEIGHTING] * df[ELO_DIFFERENCE_WEIGHTING]
