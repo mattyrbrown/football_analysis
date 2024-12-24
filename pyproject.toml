@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "tim-tam-repo"
+name = "striker_recommendation_analysis"
 version = "0.1.0"
-description = "A cookie cutter repo template to base other repos on"
+description = "City Football Group - Striker recommendation analysis"
 authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
