@@ -4,6 +4,9 @@ TEAM_IDS = list(range(6))
 SIGMOID_K_RANGE = 4
 OPPOSITION_ELO_CAP = 0.1
 ELO_DIFFERENCE_CAP = 0.1
+Y_ZONE_LINE_MIN = 20
+Y_ZONE_LINE_MAX = 60
+X_FINAL_THIRD_MIN = 80
 
 # File paths
 DATA_RAW_PATH = "data/raw/"
@@ -64,6 +67,13 @@ BOTH = "both"
 DASH_LINE = "--"
 GOALS_EQUAL_XG = "Goals = xG"
 DENSITY = "Density"
+BOLD = "bold"
+HUSL = "husl"
+X = "x"
+RADAR_PLOT_Y_TICK_LABELS = ['50', '75', '100']
+POLAR = 'polar'
+STRAIGHT_LINE = "-"
+UPPER_RIGHT = 'upper right'
 
 
 # Events data constants

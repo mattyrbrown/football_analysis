@@ -152,7 +152,7 @@ def sigmoid(x: float, k: float, x0: float) -> float:
     return output
 
 
-def create_opponent_elo_weighting(df: pd.DataFrame, cap):
+def create_opponent_elo_weighting(df: pd.DataFrame, cap: float) -> pd.DataFrame:
     """
     Create opponent ELO weighting for each event in the dataset, with the weighting calculated using a sigmoid function.
     The sigmoid function is centred around the median opponent ELO rating, with the slope of the function determined by the range
@@ -195,7 +195,7 @@ def create_opponent_elo_weighting(df: pd.DataFrame, cap):
     return df
 
 
-def create_elo_difference_weighting(df: pd.DataFrame, cap):
+def create_elo_difference_weighting(df: pd.DataFrame, cap: float) -> pd.DataFrame:
     """
     Create ELO difference weighting for each event in the dataset, with the weighting calculated using a sigmoid function.
     The ELO difference is calculated as the difference of the opponent ELO rating from the player's team ELO rating. The
@@ -236,7 +236,7 @@ def create_elo_difference_weighting(df: pd.DataFrame, cap):
     return df
 
 
-def transform_joined_data(df: pd.DataFrame):
+def transform_joined_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Detrmine the player's team and opposition ELO ratings for each event in the dataset using the home and away team ELO
     ratings from the matches data. Create opponent ELO weighting and ELO difference weighting for each event in the dataset
@@ -289,7 +289,7 @@ def transform_joined_data(df: pd.DataFrame):
     return df
 
 
-def read_and_join_events_and_matches_data():
+def read_and_join_events_and_matches_data() -> pd.DataFrame:
     """
     Read in events and matches data, join the two datasets and transform the joined data before saving the output as a csv file
     in processed folder.
